@@ -4,7 +4,7 @@ setup(
     name='openapi2jsonschema',
     author='Gareth Rushgrove',
     author_email='gareth@morethanseven.net',
-    version='0.1.0',
+    version='0.2.0',
     license='Apache License 2.0',
     packages=['openapi2jsonschema',],
     install_requires=[
@@ -21,4 +21,7 @@ setup(
             'openapi2jsonschema = openapi2jsonschema.command:default'
        ]
     },
+    keywords = 'openapi, jsonschema',
+    description = 'A utility to extract JSON Schema from a valid OpenAPI specification.',
+    url = "https://github.com/garethr/openapi2jsonschema/",
 )
