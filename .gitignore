@@ -1,0 +1,10 @@
+.Python
+bin
+build
+dist
+include
+lib
+*.egg-info
+*.pyc
+pip-selfcheck.json
+MANIFEST
