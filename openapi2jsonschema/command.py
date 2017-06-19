@@ -83,7 +83,7 @@ def default(output, schema, prefix, stand_alone):
         with open("%s/%s" % (output, schema_file_name), 'w') as schema_file:
             debug("Generating %s" % schema_file_name)
             if stand_alone:
-                base = "file://%s/%s/" % (os.path.dirname(os.path.abspath(__file__)), output)
+                base = "file://%s/%s/" % (os.getcwd(), output)
                 schema_file.write(json.dumps(
                     JsonRef.replace_refs(specification, base_uri=base), indent=2))
             else:
