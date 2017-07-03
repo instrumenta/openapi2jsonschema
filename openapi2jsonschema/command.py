@@ -9,6 +9,30 @@ from jsonref import JsonRef
 import click
 
 
+def replace_int_or_string(data):
+    new = {}
+    try:
+        for k, v in data.iteritems():
+            new_v = v
+            if isinstance(v, dict):
+                if 'format' in v and v['format'] == 'int-or-string':
+                    new_v = {'oneOf': [
+                        {'type': 'string'},
+                        {'type': 'integer'},
+                    ]}
+                else:
+                    new_v = replace_int_or_string(v)
+            elif isinstance(v, list):
+                new_v = list()
+                for x in v:
+                    new_v.append(replace_int_or_string(x))
+            else:
+                new_v = v
+            new[k] = new_v
+        return new
+    except AttributeError:
+        return data
+
 def change_dict_values(d, prefix):
     new = {}
     for k, v in d.iteritems():
@@ -62,11 +86,11 @@ def default(output, schema, prefix, stand_alone):
 
     info("Generating individual schemas")
     for title in data['definitions']:
+        kind = title.split('.')[-1].lower()
         specification = data['definitions'][title]
         specification["$schema"] ="http://json-schema.org/schema#"
         specification["type"] = "object"
 
-        kind = title.split('.')[-1].lower()
         types.append(title)
 
         if "properties" in specification:
@@ -78,16 +102,19 @@ def default(output, schema, prefix, stand_alone):
                 updated = change_dict_values(specification["additionalProperties"], prefix)
                 specification["additionalProperties"] = updated
 
+        if stand_alone:
+            base = "file://%s/%s/" % (os.getcwd(), output)
+            specification = JsonRef.replace_refs(specification, base_uri=base)
+
+
+        if "properties" in specification:
+            updated = replace_int_or_string(specification["properties"])
+            specification["properties"] = updated
 
         schema_file_name = "%s.json" % kind
         with open("%s/%s" % (output, schema_file_name), 'w') as schema_file:
             debug("Generating %s" % schema_file_name)
-            if stand_alone:
-                base = "file://%s/%s/" % (os.getcwd(), output)
-                schema_file.write(json.dumps(
-                    JsonRef.replace_refs(specification, base_uri=base), indent=2))
-            else:
-                schema_file.write(json.dumps(specification, indent=2))
+            schema_file.write(json.dumps(specification, indent=2))
 
     with open("%s/all.json" % output, 'w') as all_file:
         info("Generating schema for all types")
