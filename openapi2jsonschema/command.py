@@ -80,7 +80,12 @@ def default(output, schema, prefix, stand_alone):
 
     with open("%s/_definitions.json" % output, 'w') as definitions_file:
         info("Generating shared definitions")
-        definitions_file.write(json.dumps({"definitions": data['definitions']}, indent=2))
+        definitions = data['definitions']
+        definitions['io.k8s.apimachinery.pkg.util.intstr.IntOrString'] = {'oneOf': [
+            {'type': 'string'},
+            {'type': 'integer'},
+        ]}
+        definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
 
