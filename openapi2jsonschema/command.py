@@ -33,6 +33,28 @@ def replace_int_or_string(data):
     except AttributeError:
         return data
 
+def allow_null_arrays(data):
+    new = {}
+    try:
+        for k, v in data.iteritems():
+            new_v = v
+            if isinstance(v, dict):
+                new_v = allow_null_arrays(v)
+            elif isinstance(v, list):
+                new_v = list()
+                for x in v:
+                    new_v.append(allow_null_arrays(x))
+            elif isinstance(v, basestring):
+                if k == "type" and v == "array":
+                    new_v = ["array", "null"]
+            else:
+                new_v = v
+            new[k] = new_v
+        return new
+    except AttributeError:
+        return data
+
+
 def change_dict_values(d, prefix):
     new = {}
     for k, v in d.iteritems():
@@ -63,8 +85,9 @@ def debug(message):
 @click.option('-o', '--output', default='schemas', metavar='PATH', help='Directory to store schema files')
 @click.option('-p', '--prefix', default='_definitions.json', help='Prefix for JSON references')
 @click.option('--stand-alone', is_flag=True, help='Whether or not to de-reference JSON schemas')
+@click.option('--kubernetes', is_flag=True, help='Enable Kubernetes specific processors')
 @click.argument('schema', metavar='SCHEMA_URL')
-def default(output, schema, prefix, stand_alone):
+def default(output, schema, prefix, stand_alone, kubernetes):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -81,10 +104,11 @@ def default(output, schema, prefix, stand_alone):
     with open("%s/_definitions.json" % output, 'w') as definitions_file:
         info("Generating shared definitions")
         definitions = data['definitions']
-        definitions['io.k8s.apimachinery.pkg.util.intstr.IntOrString'] = {'oneOf': [
-            {'type': 'string'},
-            {'type': 'integer'},
-        ]}
+        if kubernetes:
+            definitions['io.k8s.apimachinery.pkg.util.intstr.IntOrString'] = {'oneOf': [
+                {'type': 'string'},
+                {'type': 'integer'},
+            ]}
         definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
@@ -111,9 +135,9 @@ def default(output, schema, prefix, stand_alone):
             base = "file://%s/%s/" % (os.getcwd(), output)
             specification = JsonRef.replace_refs(specification, base_uri=base)
 
-
-        if "properties" in specification:
+        if kubernetes and "properties" in specification:
             updated = replace_int_or_string(specification["properties"])
+            updated = allow_null_arrays(updated)
             specification["properties"] = updated
 
         schema_file_name = "%s.json" % kind
