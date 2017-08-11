@@ -33,22 +33,26 @@ def replace_int_or_string(data):
     except AttributeError:
         return data
 
-def allow_null_arrays(data):
+def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
     new = {}
     try:
         for k, v in data.iteritems():
             new_v = v
             if isinstance(v, dict):
-                new_v = allow_null_arrays(v)
+                new_v = allow_null_optional_fields(v, data, parent, k)
             elif isinstance(v, list):
                 new_v = list()
                 for x in v:
-                    new_v.append(allow_null_arrays(x))
+                    new_v.append(allow_null_optional_fields(x, v, parent, k))
             elif isinstance(v, basestring):
-                if k == "type" and v == "array":
+                is_array = k == "type" and v == "array"
+                is_string = k == "type" and v == "string"
+                has_required_fields = grand_parent and "required" in grand_parent
+                is_required_field = has_required_fields and key in grand_parent["required"]
+                if is_array and not is_required_field:
                     new_v = ["array", "null"]
-            else:
-                new_v = v
+                elif is_string and not is_required_field:
+                    new_v = ["string", "null"]
             new[k] = new_v
         return new
     except AttributeError:
@@ -126,18 +130,18 @@ def default(output, schema, prefix, stand_alone, kubernetes):
             updated = change_dict_values(specification["properties"], prefix)
             specification["properties"] = updated
 
+        if stand_alone:
+            base = "file://%s/%s/" % (os.getcwd(), output)
+            specification = JsonRef.replace_refs(specification, base_uri=base)
+
         if "additionalProperties" in specification:
             if specification["additionalProperties"]:
                 updated = change_dict_values(specification["additionalProperties"], prefix)
                 specification["additionalProperties"] = updated
 
-        if stand_alone:
-            base = "file://%s/%s/" % (os.getcwd(), output)
-            specification = JsonRef.replace_refs(specification, base_uri=base)
-
         if kubernetes and "properties" in specification:
             updated = replace_int_or_string(specification["properties"])
-            updated = allow_null_arrays(updated)
+            updated = allow_null_optional_fields(updated)
             specification["properties"] = updated
 
         schema_file_name = "%s.json" % kind
