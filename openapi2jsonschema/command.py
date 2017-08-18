@@ -113,6 +113,10 @@ def default(output, schema, prefix, stand_alone, kubernetes):
                 {'type': 'string'},
                 {'type': 'integer'},
             ]}
+            definitions['io.k8s.apimachinery.pkg.api.resource.Quantity'] = {'oneOf': [
+                {'type': 'string'},
+                {'type': 'integer'},
+            ]}
         definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
