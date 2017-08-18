@@ -1,7 +1,10 @@
 FROM python:2-alpine
 MAINTAINER Gareth Rushgrove "gareth@morethanseven.net"
 
-RUN pip install openapi2jsonschema
+COPY . /src
+RUN cd src && pip install -e .
+
+WORKDIR /out
 
 ENTRYPOINT ["/usr/local/bin/openapi2jsonschema"]
 CMD ["--help"]
