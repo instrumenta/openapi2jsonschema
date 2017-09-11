@@ -7,7 +7,7 @@ import os
 
 from jsonref import JsonRef
 import click
-
+import pdb
 
 def replace_int_or_string(data):
     new = {}
@@ -133,6 +133,10 @@ def default(output, schema, prefix, stand_alone, kubernetes):
         if "properties" in specification:
             updated = change_dict_values(specification["properties"], prefix)
             specification["properties"] = updated
+
+        if "$ref" in specification:
+            updated = change_dict_values(specification, prefix)
+            specification["$ref"] = updated
 
         if stand_alone:
             base = "file://%s/%s/" % (os.getcwd(), output)
