@@ -7,7 +7,6 @@ import os
 
 from jsonref import JsonRef
 import click
-import pdb
 
 def replace_int_or_string(data):
     new = {}
