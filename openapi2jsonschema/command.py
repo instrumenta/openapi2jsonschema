@@ -9,6 +9,24 @@ from jsonref import JsonRef
 import click
 
 
+def additional_properties(data):
+    "This recreates the behaviour of kubectl at https://github.com/kubernetes/kubernetes/blob/225b9119d6a8f03fcbe3cc3d590c261965d928d0/pkg/kubectl/validation/schema.go#L312"
+    new = {}
+    try:
+        for k, v in data.iteritems():
+            new_v = v
+            if isinstance(v, dict):
+                if "properties" in v:
+                    if "additionalProperties" not in v:
+                        v["additionalProperties"] = False
+                new_v = additional_properties(v)
+            else:
+                new_v = v
+            new[k] = new_v
+        return new
+    except AttributeError:
+        return data
+
 def replace_int_or_string(data):
     new = {}
     try:
@@ -61,21 +79,24 @@ def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
 
 def change_dict_values(d, prefix):
     new = {}
-    for k, v in d.iteritems():
-        new_v = v
-        if isinstance(v, dict):
-            new_v = change_dict_values(v, prefix)
-        elif isinstance(v, list):
-            new_v = list()
-            for x in v:
-                new_v.append(change_dict_values(x, prefix))
-        elif isinstance(v, basestring):
-            if k == "$ref":
-                new_v = "%s%s" % (prefix, v)
-        else:
+    try:
+        for k, v in d.iteritems():
             new_v = v
-        new[k] = new_v
-    return new
+            if isinstance(v, dict):
+                new_v = change_dict_values(v, prefix)
+            elif isinstance(v, list):
+                new_v = list()
+                for x in v:
+                    new_v.append(change_dict_values(x, prefix))
+            elif isinstance(v, basestring):
+                if k == "$ref":
+                    new_v = "%s%s" % (prefix, v)
+            else:
+                new_v = v
+            new[k] = new_v
+        return new
+    except AttributeError:
+        return d
 
 
 def info(message):
@@ -84,14 +105,18 @@ def info(message):
 def debug(message):
     click.echo(click.style(message, fg='yellow'))
 
+def error(message):
+    click.echo(click.style(message, fg='red'))
+
 
 @click.command()
 @click.option('-o', '--output', default='schemas', metavar='PATH', help='Directory to store schema files')
 @click.option('-p', '--prefix', default='_definitions.json', help='Prefix for JSON references')
 @click.option('--stand-alone', is_flag=True, help='Whether or not to de-reference JSON schemas')
 @click.option('--kubernetes', is_flag=True, help='Enable Kubernetes specific processors')
+@click.option('--strict', is_flag=True, help='Prohibits properties not in the schema (additionalProperties: false)')
 @click.argument('schema', metavar='SCHEMA_URL')
-def default(output, schema, prefix, stand_alone, kubernetes):
+def default(output, schema, prefix, stand_alone, kubernetes, strict):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -130,28 +155,40 @@ def default(output, schema, prefix, stand_alone, kubernetes):
 
         types.append(title)
 
-        if "properties" in specification:
-            updated = change_dict_values(specification["properties"], prefix)
-            specification["properties"] = updated
+        try:
+            debug("Processing %s" % kind)
 
-        if stand_alone:
-            base = "file://%s/%s/" % (os.getcwd(), output)
-            specification = JsonRef.replace_refs(specification, base_uri=base)
+            updated = change_dict_values(specification, prefix)
+            specification = updated
 
-        if "additionalProperties" in specification:
-            if specification["additionalProperties"]:
-                updated = change_dict_values(specification["additionalProperties"], prefix)
-                specification["additionalProperties"] = updated
+            if stand_alone:
+                base = "file://%s/%s/" % (os.getcwd(), output)
+                specification = JsonRef.replace_refs(specification, base_uri=base)
 
-        if kubernetes and "properties" in specification:
-            updated = replace_int_or_string(specification["properties"])
-            updated = allow_null_optional_fields(updated)
-            specification["properties"] = updated
+            if "additionalProperties" in specification:
+                if specification["additionalProperties"]:
+                    updated = change_dict_values(specification["additionalProperties"], prefix)
+                    specification["additionalProperties"] = updated
 
-        schema_file_name = "%s.json" % kind
-        with open("%s/%s" % (output, schema_file_name), 'w') as schema_file:
-            debug("Generating %s" % schema_file_name)
-            schema_file.write(json.dumps(specification, indent=2))
+            if strict and "properties" in specification:
+                # This list of Kubernets types carry around jsonschema for Kubernetes and don't
+                # currently work with openapi2jsonschema
+                if not kubernetes or kind not in ["jsonschemaprops", "jsonschemapropsorarray", "customresourcevalidation", "customresourcedefinition", "customresourcedefinitionspec", "customresourcedefinitionlist", "customresourcedefinitionspec", "jsonschemapropsorstringarray", "jsonschemapropsorbool"]:
+                    updated = additional_properties(specification["properties"])
+                    specification["properties"] = updated
+
+                if kubernetes and "properties" in specification:
+                    updated = replace_int_or_string(specification["properties"])
+                    updated = allow_null_optional_fields(updated)
+                    specification["properties"] = updated
+
+            schema_file_name = "%s.json" % kind
+            with open("%s/%s" % (output, schema_file_name), 'w') as schema_file:
+                debug("Generating %s" % schema_file_name)
+                schema_file.write(json.dumps(specification, indent=2))
+        except Exception as e:
+            error("An error occured processinng %s: %s" % (kind, e))
+
 
     with open("%s/all.json" % output, 'w') as all_file:
         info("Generating schema for all types")
