@@ -114,9 +114,10 @@ def error(message):
 @click.option('-p', '--prefix', default='_definitions.json', help='Prefix for JSON references')
 @click.option('--stand-alone', is_flag=True, help='Whether or not to de-reference JSON schemas')
 @click.option('--kubernetes', is_flag=True, help='Enable Kubernetes specific processors')
+@click.option('--skip-k8s-quantity-patch', 'skip_quantity', is_flag=True, help='Disables patching Kubernetes Quantity object type to int-to-string')
 @click.option('--strict', is_flag=True, help='Prohibits properties not in the schema (additionalProperties: false)')
 @click.argument('schema', metavar='SCHEMA_URL')
-def default(output, schema, prefix, stand_alone, kubernetes, strict):
+def default(output, schema, prefix, stand_alone, kubernetes, skip_quantity, strict):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -138,10 +139,11 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
                 {'type': 'string'},
                 {'type': 'integer'},
             ]}
-            definitions['io.k8s.apimachinery.pkg.api.resource.Quantity'] = {'oneOf': [
-                {'type': 'string'},
-                {'type': 'integer'},
-            ]}
+            if not skip_quantity:
+                definitions['io.k8s.apimachinery.pkg.api.resource.Quantity'] = {'oneOf': [
+                    {'type': 'string'},
+                    {'type': 'integer'},
+                ]}
         definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
