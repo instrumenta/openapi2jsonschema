@@ -4,6 +4,7 @@ import json
 import yaml
 import urllib
 import os
+import sys
 
 from jsonref import JsonRef
 import click
@@ -188,6 +189,7 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
                 schema_file.write(json.dumps(specification, indent=2))
         except Exception as e:
             error("An error occured processinng %s: %s" % (kind, e))
+            sys.exit(1)
 
 
     with open("%s/all.json" % output, 'w') as all_file:
