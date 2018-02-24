@@ -9,6 +9,9 @@ from jsonref import JsonRef
 import click
 
 
+class UnsupportedError(Exception):
+    pass
+
 def additional_properties(data):
     "This recreates the behaviour of kubectl at https://github.com/kubernetes/kubernetes/blob/225b9119d6a8f03fcbe3cc3d590c261965d928d0/pkg/kubectl/validation/schema.go#L312"
     new = {}
@@ -161,6 +164,11 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
             updated = change_dict_values(specification, prefix)
             specification = updated
 
+            # This list of Kubernets types carry around jsonschema for Kubernetes and don't
+            # currently work with openapi2jsonschema
+            if kubernetes and kind in ["jsonschemaprops", "jsonschemapropsorarray", "customresourcevalidation", "customresourcedefinition", "customresourcedefinitionspec", "customresourcedefinitionlist", "customresourcedefinitionspec", "jsonschemapropsorstringarray", "jsonschemapropsorbool"]:
+                raise UnsupportedError("%s not currently supported" % kind)
+
             if stand_alone:
                 base = "file://%s/%s/" % (os.getcwd(), output)
                 specification = JsonRef.replace_refs(specification, base_uri=base)
@@ -171,23 +179,20 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
                     specification["additionalProperties"] = updated
 
             if strict and "properties" in specification:
-                # This list of Kubernets types carry around jsonschema for Kubernetes and don't
-                # currently work with openapi2jsonschema
-                if not kubernetes or kind not in ["jsonschemaprops", "jsonschemapropsorarray", "customresourcevalidation", "customresourcedefinition", "customresourcedefinitionspec", "customresourcedefinitionlist", "customresourcedefinitionspec", "jsonschemapropsorstringarray", "jsonschemapropsorbool"]:
-                    updated = additional_properties(specification["properties"])
-                    specification["properties"] = updated
+                updated = additional_properties(specification["properties"])
+                specification["properties"] = updated
 
-                if kubernetes and "properties" in specification:
-                    updated = replace_int_or_string(specification["properties"])
-                    updated = allow_null_optional_fields(updated)
-                    specification["properties"] = updated
+            if kubernetes and "properties" in specification:
+                updated = replace_int_or_string(specification["properties"])
+                updated = allow_null_optional_fields(updated)
+                specification["properties"] = updated
 
             schema_file_name = "%s.json" % kind
             with open("%s/%s" % (output, schema_file_name), 'w') as schema_file:
                 debug("Generating %s" % schema_file_name)
                 schema_file.write(json.dumps(specification, indent=2))
         except Exception as e:
-            error("An error occured processinng %s: %s" % (kind, e))
+            error("An error occured processing %s: %s" % (kind, e))
 
 
     with open("%s/all.json" % output, 'w') as all_file:
