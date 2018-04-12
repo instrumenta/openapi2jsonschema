@@ -123,12 +123,11 @@ def error(message):
 @click.command()
 @click.option('-o', '--output', default='schemas', metavar='PATH', help='Directory to store schema files')
 @click.option('-p', '--prefix', default='_definitions.json', help='Prefix for JSON references (only for OpenAPI versions before 3.0)')
-@click.option('-v', '--version', default='3.0', help='OpenAPI version')
 @click.option('--stand-alone', is_flag=True, help='Whether or not to de-reference JSON schemas')
 @click.option('--kubernetes', is_flag=True, help='Enable Kubernetes specific processors')
 @click.option('--strict', is_flag=True, help='Prohibits properties not in the schema (additionalProperties: false)')
 @click.argument('schema', metavar='SCHEMA_URL')
-def default(output, schema, prefix, version, stand_alone, kubernetes, strict):
+def default(output, schema, prefix, stand_alone, kubernetes, strict):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -138,6 +137,11 @@ def default(output, schema, prefix, version, stand_alone, kubernetes, strict):
     # Note that JSON is valid YAML, so we can use the YAML parser whether
     # the schema is stored in JSON or YAML
     data = yaml.load(response.read())
+
+    if 'swagger' in data:
+        version = data['swagger']
+    elif 'openapi' in data:
+        version = data['openapi']
 
     if not os.path.exists(output):
         os.makedirs(output)
