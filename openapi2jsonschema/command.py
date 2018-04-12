@@ -4,6 +4,7 @@ import json
 import yaml
 import urllib
 import os
+import sys
 
 from jsonref import JsonRef
 import click
@@ -132,7 +133,15 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
     info("Downloading schema")
-    response = urllib.urlopen(schema)
+    if sys.version_info < (3, 0):
+
+        response = urllib.urlopen(schema)
+    else:
+        if os.path.isfile(schema):
+            schema = 'file://' + os.path.realpath(schema)
+        req = urllib.request.Request(schema)
+        response = urllib.request.urlopen(req)
+
     info("Parsing schema")
     # Note that JSON is valid YAML, so we can use the YAML parser whether
     # the schema is stored in JSON or YAML
