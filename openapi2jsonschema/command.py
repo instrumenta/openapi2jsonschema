@@ -12,6 +12,7 @@ import click
 class UnsupportedError(Exception):
     pass
 
+
 def additional_properties(data):
     "This recreates the behaviour of kubectl at https://github.com/kubernetes/kubernetes/blob/225b9119d6a8f03fcbe3cc3d590c261965d928d0/pkg/kubectl/validation/schema.go#L312"
     new = {}
@@ -29,6 +30,7 @@ def additional_properties(data):
         return new
     except AttributeError:
         return data
+
 
 def replace_int_or_string(data):
     new = {}
@@ -53,6 +55,7 @@ def replace_int_or_string(data):
         return new
     except AttributeError:
         return data
+
 
 def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
     new = {}
@@ -80,20 +83,23 @@ def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
         return data
 
 
-def change_dict_values(d, prefix):
+def change_dict_values(d, prefix, version):
     new = {}
     try:
         for k, v in d.iteritems():
             new_v = v
             if isinstance(v, dict):
-                new_v = change_dict_values(v, prefix)
+                new_v = change_dict_values(v, prefix, version)
             elif isinstance(v, list):
                 new_v = list()
                 for x in v:
-                    new_v.append(change_dict_values(x, prefix))
+                    new_v.append(change_dict_values(x, prefix, version))
             elif isinstance(v, basestring):
                 if k == "$ref":
-                    new_v = "%s%s" % (prefix, v)
+                    if version < '3':
+                        new_v = "%s%s" % (prefix, v)
+                    else:
+                        new_v = v.replace("#/components/schemas/", "") + ".json"
             else:
                 new_v = v
             new[k] = new_v
@@ -105,8 +111,10 @@ def change_dict_values(d, prefix):
 def info(message):
     click.echo(click.style(message, fg='green'))
 
+
 def debug(message):
     click.echo(click.style(message, fg='yellow'))
+
 
 def error(message):
     click.echo(click.style(message, fg='red'))
@@ -114,12 +122,13 @@ def error(message):
 
 @click.command()
 @click.option('-o', '--output', default='schemas', metavar='PATH', help='Directory to store schema files')
-@click.option('-p', '--prefix', default='_definitions.json', help='Prefix for JSON references')
+@click.option('-p', '--prefix', default='_definitions.json', help='Prefix for JSON references (only for OpenAPI versions before 3.0)')
+@click.option('-v', '--version', default='3.0', help='OpenAPI version')
 @click.option('--stand-alone', is_flag=True, help='Whether or not to de-reference JSON schemas')
 @click.option('--kubernetes', is_flag=True, help='Enable Kubernetes specific processors')
 @click.option('--strict', is_flag=True, help='Prohibits properties not in the schema (additionalProperties: false)')
 @click.argument('schema', metavar='SCHEMA_URL')
-def default(output, schema, prefix, stand_alone, kubernetes, strict):
+def default(output, schema, prefix, version, stand_alone, kubernetes, strict):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -133,35 +142,43 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
     if not os.path.exists(output):
         os.makedirs(output)
 
-    with open("%s/_definitions.json" % output, 'w') as definitions_file:
-        info("Generating shared definitions")
-        definitions = data['definitions']
-        if kubernetes:
-            definitions['io.k8s.apimachinery.pkg.util.intstr.IntOrString'] = {'oneOf': [
-                {'type': 'string'},
-                {'type': 'integer'},
-            ]}
-            definitions['io.k8s.apimachinery.pkg.api.resource.Quantity'] = {'oneOf': [
-                {'type': 'string'},
-                {'type': 'integer'},
-            ]}
-        definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
+    if version < '3':
+        with open("%s/_definitions.json" % output, 'w') as definitions_file:
+            info("Generating shared definitions")
+            definitions = data['definitions']
+            if kubernetes:
+                definitions['io.k8s.apimachinery.pkg.util.intstr.IntOrString'] = {'oneOf': [
+                    {'type': 'string'},
+                    {'type': 'integer'},
+                ]}
+                definitions['io.k8s.apimachinery.pkg.api.resource.Quantity'] = {'oneOf': [
+                    {'type': 'string'},
+                    {'type': 'integer'},
+                ]}
+            definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
 
     info("Generating individual schemas")
-    for title in data['definitions']:
-        kind = title.split('.')[-1].lower()
-        specification = data['definitions'][title]
-        specification["$schema"] ="http://json-schema.org/schema#"
-        specification["type"] = "object"
+    if version < '3':
+        components = data['definitions']
+    else:
+        components = data['components']['schemas']
+
+    for title in components:
+        kind = title.split('.')[-1]
+        specification = components[title]
+        specification["$schema"] = "http://json-schema.org/schema#"
+
+        if "type" not in specification:
+            specification["type"] = "object"
 
         types.append(title)
 
         try:
             debug("Processing %s" % kind)
 
-            updated = change_dict_values(specification, prefix)
+            updated = change_dict_values(specification, prefix, version)
             specification = updated
 
             # This list of Kubernets types carry around jsonschema for Kubernetes and don't
@@ -175,7 +192,7 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
 
             if "additionalProperties" in specification:
                 if specification["additionalProperties"]:
-                    updated = change_dict_values(specification["additionalProperties"], prefix)
+                    updated = change_dict_values(specification["additionalProperties"], prefix, version)
                     specification["additionalProperties"] = updated
 
             if strict and "properties" in specification:
@@ -194,13 +211,16 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
         except Exception as e:
             error("An error occured processing %s: %s" % (kind, e))
 
-
     with open("%s/all.json" % output, 'w') as all_file:
         info("Generating schema for all types")
         contents = {"oneOf": []}
         for title in types:
-            contents["oneOf"].append({"$ref": "%s#/definitions/%s" % (prefix, title)})
+            if version < '3':
+                contents["oneOf"].append({"$ref": "%s#/definitions/%s" % (prefix, title)})
+            else:
+                contents["oneOf"].append({"$ref": (title.replace("#/components/schemas/", "") + ".json")})
         all_file.write(json.dumps(contents, indent=2))
+
 
 if __name__ == '__main__':
     default()

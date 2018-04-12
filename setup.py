@@ -4,7 +4,7 @@ setup(
     name='openapi2jsonschema',
     author='Gareth Rushgrove',
     author_email='gareth@morethanseven.net',
-    version='0.7.1',
+    version='0.8.0',
     license='Apache License 2.0',
     packages=['openapi2jsonschema',],
     install_requires=[
