@@ -118,8 +118,9 @@ def error(message):
 @click.option('--stand-alone', is_flag=True, help='Whether or not to de-reference JSON schemas')
 @click.option('--kubernetes', is_flag=True, help='Enable Kubernetes specific processors')
 @click.option('--strict', is_flag=True, help='Prohibits properties not in the schema (additionalProperties: false)')
+@click.option('--fakers', required=False, help='Enables registration of custom fakers. See https://git.io/vFAhp')
 @click.argument('schema', metavar='SCHEMA_URL')
-def default(output, schema, prefix, stand_alone, kubernetes, strict):
+def default(output, schema, fakers, prefix, stand_alone, kubernetes, strict):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -129,6 +130,11 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
     # Note that JSON is valid YAML, so we can use the YAML parser whether
     # the schema is stored in JSON or YAML
     data = yaml.load(response.read())
+    fakers_defined = len(fakers) != 0
+    if fakers_defined:
+        info("Loading fakers")
+        with open(fakers, 'r') as stream:
+            fakers_definitions = yaml.safe_load(stream)
 
     if not os.path.exists(output):
         os.makedirs(output)
@@ -145,6 +151,14 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
                 {'type': 'string'},
                 {'type': 'integer'},
             ]}
+
+        if fakers_defined:
+            for schema_type, faker in fakers_definitions.iteritems():
+                if schema_type in definitions:
+                    definitions[schema_type]['faker'] = faker
+                else:
+                    definitions[schema_type] = {'faker': faker}
+
         definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
