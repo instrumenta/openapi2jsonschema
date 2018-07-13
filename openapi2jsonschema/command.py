@@ -145,6 +145,9 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
                 {'type': 'string'},
                 {'type': 'integer'},
             ]}
+        if strict:
+            definitions = additional_properties(definitions)
+
         definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
