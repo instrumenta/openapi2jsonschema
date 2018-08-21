@@ -168,6 +168,8 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
                     {'type': 'string'},
                     {'type': 'integer'},
                 ]}
+            if strict:
+                definitions = additional_properties(definitions)
             definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
@@ -179,12 +181,10 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
         components = data['components']['schemas']
 
     for title in components:
-        kind = title.split('.')[-1]
+        kind = title.split('.')[-1].lower()
         specification = components[title]
         specification["$schema"] = "http://json-schema.org/schema#"
-
-        if "type" not in specification:
-            specification["type"] = "object"
+        specification.setdefault("type", "object")
 
         types.append(title)
 
