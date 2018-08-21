@@ -157,7 +157,7 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
         kind = title.split('.')[-1].lower()
         specification = data['definitions'][title]
         specification["$schema"] ="http://json-schema.org/schema#"
-        specification["type"] = "object"
+        specification.setdefault("type", "object")
 
         types.append(title)
 
