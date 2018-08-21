@@ -47,8 +47,12 @@ Usage: openapi2jsonschema [OPTIONS] SCHEMA
 
 Options:
   -o, --output PATH  Directory to store schema files
-  -p, --prefix TEXT  Prefix for JSON references
+  -p, --prefix TEXT  Prefix for JSON references (only for OpenAPI versions
+                     before 3.0)
   --stand-alone      Whether or not to de-reference JSON schemas
+  --kubernetes       Enable Kubernetes specific processors
+  --strict           Prohibits properties not in the schema
+                     (additionalProperties: false)
   --help             Show this message and exit.
 ```
 
