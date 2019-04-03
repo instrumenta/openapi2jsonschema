@@ -14,11 +14,23 @@ class UnsupportedError(Exception):
     pass
 
 
+try:
+    dict.iteritems
+except AttributeError:
+    # Python 3
+    def iteritems(d):
+        return iter(d.items())
+else:
+    # Python 2
+    def iteritems(d):
+        return d.iteritems()
+
+
 def additional_properties(data):
     "This recreates the behaviour of kubectl at https://github.com/kubernetes/kubernetes/blob/225b9119d6a8f03fcbe3cc3d590c261965d928d0/pkg/kubectl/validation/schema.go#L312"
     new = {}
     try:
-        for k, v in data.iteritems():
+        for k, v in iteritems(data):
             new_v = v
             if isinstance(v, dict):
                 if "properties" in v:
@@ -36,7 +48,7 @@ def additional_properties(data):
 def replace_int_or_string(data):
     new = {}
     try:
-        for k, v in data.iteritems():
+        for k, v in iteritems(data):
             new_v = v
             if isinstance(v, dict):
                 if 'format' in v and v['format'] == 'int-or-string':
@@ -61,7 +73,7 @@ def replace_int_or_string(data):
 def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
     new = {}
     try:
-        for k, v in data.iteritems():
+        for k, v in iteritems(data):
             new_v = v
             if isinstance(v, dict):
                 new_v = allow_null_optional_fields(v, data, parent, k)
@@ -69,7 +81,7 @@ def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
                 new_v = list()
                 for x in v:
                     new_v.append(allow_null_optional_fields(x, v, parent, k))
-            elif isinstance(v, basestring):
+            elif isinstance(v, str):
                 is_array = k == "type" and v == "array"
                 is_string = k == "type" and v == "string"
                 has_required_fields = grand_parent and "required" in grand_parent
@@ -87,7 +99,7 @@ def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
 def change_dict_values(d, prefix, version):
     new = {}
     try:
-        for k, v in d.iteritems():
+        for k, v in iteritems(d):
             new_v = v
             if isinstance(v, dict):
                 new_v = change_dict_values(v, prefix, version)
@@ -95,7 +107,7 @@ def change_dict_values(d, prefix, version):
                 new_v = list()
                 for x in v:
                     new_v.append(change_dict_values(x, prefix, version))
-            elif isinstance(v, basestring):
+            elif isinstance(v, str):
                 if k == "$ref":
                     if version < '3':
                         new_v = "%s%s" % (prefix, v)

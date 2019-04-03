@@ -10,3 +10,4 @@ pip-selfcheck.json
 MANIFEST
 Scripts
 tcl
+.vscode
