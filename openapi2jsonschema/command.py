@@ -256,6 +256,10 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
             if kubernetes and stand_alone and kind in ["jsonschemaprops", "jsonschemapropsorarray", "customresourcevalidation", "customresourcedefinition", "customresourcedefinitionspec", "customresourcedefinitionlist", "customresourcedefinitionspec", "jsonschemapropsorstringarray", "jsonschemapropsorbool"]:
                 raise UnsupportedError("%s not currently supported" % kind)
 
+            if "$ref" in specification:
+              updated = change_dict_values(specification, prefix, version)
+              specification["$ref"] = updated
+
             if stand_alone:
                 base = "file://%s/%s/" % (os.getcwd(), output)
                 specification = JsonRef.replace_refs(specification, base_uri=base)
