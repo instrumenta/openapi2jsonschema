@@ -120,6 +120,16 @@ def change_dict_values(d, prefix, version):
     except AttributeError:
         return d
 
+def append_no_duplicates(obj, key, value):
+    """
+    Given a dictionary, lookup the given key, if it doesn't exist create a new array.
+    Then check if the given value already exists in the array, if it doesn't add it.
+    """
+    if key not in obj:
+        obj[key] = []
+    if value not in obj[key]:
+        obj[key].append(value)
+
 
 def info(message):
     click.echo(click.style(message, fg='green'))
@@ -137,10 +147,11 @@ def error(message):
 @click.option('-o', '--output', default='schemas', metavar='PATH', help='Directory to store schema files')
 @click.option('-p', '--prefix', default='_definitions.json', help='Prefix for JSON references (only for OpenAPI versions before 3.0)')
 @click.option('--stand-alone', is_flag=True, help='Whether or not to de-reference JSON schemas')
+@click.option('--expanded', is_flag=True, help='Expand Kubernetes schemas by API version')
 @click.option('--kubernetes', is_flag=True, help='Enable Kubernetes specific processors')
 @click.option('--strict', is_flag=True, help='Prohibits properties not in the schema (additionalProperties: false)')
 @click.argument('schema', metavar='SCHEMA_URL')
-def default(output, schema, prefix, stand_alone, kubernetes, strict):
+def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -194,19 +205,30 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
 
     for title in components:
         kind = title.split('.')[-1].lower()
+        if kubernetes:
+          group = title.split('.')[-3].lower()
+          api_version = title.split('.')[-2].lower()
         specification = components[title]
         specification["$schema"] = "http://json-schema.org/schema#"
         specification.setdefault("type", "object")
 
+        if kubernetes and expanded:
+            if group == "api":
+                full_name = "%s-%s" % (kind, api_version)
+            else:
+                full_name = "%s-%s-%s" % (kind, group, api_version)
+        else:
+          full_name = kind
+
         types.append(title)
 
         try:
-            debug("Processing %s" % kind)
+            debug("Processing %s" % full_name)
 
             updated = change_dict_values(specification, prefix, version)
             specification = updated
 
-            # This list of Kubernets types carry around jsonschema for Kubernetes and don't
+            # This list of Kubernetes types carry around jsonschema for Kubernetes and don't
             # currently work with openapi2jsonschema
             if kubernetes and stand_alone and kind in ["jsonschemaprops", "jsonschemapropsorarray", "customresourcevalidation", "customresourcedefinition", "customresourcedefinitionspec", "customresourcedefinitionlist", "customresourcedefinitionspec", "jsonschemapropsorstringarray", "jsonschemapropsorbool"]:
                 raise UnsupportedError("%s not currently supported" % kind)
@@ -229,9 +251,8 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
                 updated = allow_null_optional_fields(updated)
                 specification["properties"] = updated
 
-            schema_file_name = "%s.json" % kind
-            with open("%s/%s" % (output, schema_file_name), 'w') as schema_file:
-                debug("Generating %s" % schema_file_name)
+            with open("%s/%s.json" % (output, full_name), 'w') as schema_file:
+                debug("Generating %s.json" % full_name)
                 schema_file.write(json.dumps(specification, indent=2))
         except Exception as e:
             error("An error occured processing %s: %s" % (kind, e))
