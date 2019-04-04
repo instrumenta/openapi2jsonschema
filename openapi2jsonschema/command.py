@@ -157,7 +157,7 @@ def default(output, schema, prefix, stand_alone, kubernetes, strict):
     info("Parsing schema")
     # Note that JSON is valid YAML, so we can use the YAML parser whether
     # the schema is stored in JSON or YAML
-    data = yaml.load(response.read())
+    data = yaml.load(response.read(), Loader=yaml.SafeLoader)
 
     if 'swagger' in data:
         version = data['swagger']
