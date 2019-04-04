@@ -131,6 +131,17 @@ def append_no_duplicates(obj, key, value):
         obj[key].append(value)
 
 
+def append_no_duplicates(obj, key, value):
+    """
+    Given a dictionary, lookup the given key, if it doesn't exist create a new array.
+    Then check if the given value already exists in the array, if it doesn't add it.
+    """
+    if key not in obj:
+        obj[key] = []
+    if value not in obj[key]:
+        obj[key].append(value)
+
+
 def info(message):
     click.echo(click.style(message, fg='green'))
 
@@ -191,6 +202,18 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                     {'type': 'string'},
                     {'type': 'integer'},
                 ]}
+
+                # For Kubernetes, populate `apiVersion` and `kind` properties from `x-kubernetes-group-version-kind`
+                for type_name in definitions:
+                    type_def = definitions[type_name]
+                    if 'x-kubernetes-group-version-kind' in type_def:
+                        for kube_ext in type_def['x-kubernetes-group-version-kind']:
+                            if 'apiVersion' in type_def['properties']:
+                                api_version = kube_ext['group'] + '/' + kube_ext['version'] if kube_ext['group'] else kube_ext['version']
+                                append_no_duplicates(type_def['properties']['apiVersion'], 'enum', api_version)
+                            if 'kind' in type_def['properties']:
+                                kind = kube_ext['kind']
+                                append_no_duplicates(type_def['properties']['kind'], 'enum', kind)
             if strict:
                 definitions = additional_properties(definitions)
             definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
