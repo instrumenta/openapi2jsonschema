@@ -111,3 +111,19 @@ def append_no_duplicates(obj, key, value):
         obj[key] = []
     if value not in obj[key]:
         obj[key].append(value)
+
+
+def get_components_from_body_definition(body_definition, prefix=""):
+    MIMETYPE_TO_TYPENAME_MAP = {
+        "application/json": "json",
+        "application/vnd.api+json": "jsonapi",
+    }
+    result = {}
+    for mimetype, definition in body_definition["content"].items():
+        type_name = MIMETYPE_TO_TYPENAME_MAP.get(
+            mimetype,
+            mimetype.replace("/", "_"),
+        )
+        if "schema" in definition:
+            result["{:s}{:s}".format(prefix, type_name)] = definition["schema"]
+    return result
