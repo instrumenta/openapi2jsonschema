@@ -164,7 +164,7 @@ def default(
                     ))
 
     for title in components:
-        kind = title.split(".")[-1].lower()
+        kind = title.split(".")[-1]
         if kubernetes:
             group = title.split(".")[-3].lower()
             api_version = title.split(".")[-2].lower()
@@ -198,8 +198,7 @@ def default(
             if (
                 kubernetes
                 and stand_alone
-                and kind
-                in [
+                and kind.lower() in [
                     "jsonschemaprops",
                     "jsonschemapropsorarray",
                     "customresourcevalidation",
