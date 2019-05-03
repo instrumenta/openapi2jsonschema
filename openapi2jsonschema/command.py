@@ -5,7 +5,6 @@ import yaml
 import urllib
 import os
 import sys
-import re
 
 from jsonref import JsonRef  # type: ignore
 import click
@@ -17,7 +16,7 @@ from openapi2jsonschema.util import (
     allow_null_optional_fields,
     change_dict_values,
     append_no_duplicates,
-    get_components_from_body_definition,
+    get_request_and_response_body_components_from_paths,
 )
 from openapi2jsonschema.errors import UnsupportedError
 
@@ -137,31 +136,9 @@ def default(
         components = data["components"]["schemas"]
 
     if include_bodies:
-        for path, path_definition in data["paths"].items():
-            for http_method, http_method_definition in path_definition.items():
-                name_prefix_fmt = "paths_{:s}_{:s}_{{:s}}_".format(
-                    # Paths "/" and "/root" will conflict,
-                    # no idea how to solve this elegantly.
-                    path.lstrip("/").replace("/", "_") or "root",
-                    http_method.upper(),
-                )
-                name_prefix_fmt = re.sub(
-                    r"\{([^:\}]+)\}",
-                    r"_\1_",
-                    name_prefix_fmt,
-                )
-                if "requestBody" in http_method_definition:
-                    components.update(get_components_from_body_definition(
-                        http_method_definition["requestBody"],
-                        prefix=name_prefix_fmt.format("request")
-                    ))
-                responses = http_method_definition["responses"]
-                for response_code, response in responses.items():
-                    response_name_part = "response_{}".format(response_code)
-                    components.update(get_components_from_body_definition(
-                        response,
-                        prefix=name_prefix_fmt.format(response_name_part),
-                    ))
+        components.update(
+            get_request_and_response_body_components_from_paths(data["paths"]),
+        )
 
     for title in components:
         kind = title.split(".")[-1]
