@@ -85,7 +85,7 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                 }
 
                 # Although the kubernetes api does not allow `number`  as valid
-                #  Quantity type - almost all kubenetes tooling
+                # Quantity type - almost all kubenetes tooling
                 # recognizes it is valid. For this reason, we extend the API definition to
                 # allow `number` values.
                 definitions["io.k8s.apimachinery.pkg.api.resource.Quantity"] = {
