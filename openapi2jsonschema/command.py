@@ -89,7 +89,11 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                 # recognizes it is valid. For this reason, we extend the API definition to
                 # allow `number` values.
                 definitions["io.k8s.apimachinery.pkg.api.resource.Quantity"] = {
-                    "oneOf": [{"type": "string"}, {"type": "integer"}, {"type": "number"}
+                    "oneOf": [
+                        {"type": "string"},
+                        {"type": "integer"},
+                        {"type": "number"},
+                    ]
                 }
 
                 # For Kubernetes, populate `apiVersion` and `kind` properties from `x-kubernetes-group-version-kind`
@@ -133,6 +137,9 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
         specification = components[title]
         specification["$schema"] = "http://json-schema.org/schema#"
         specification.setdefault("type", "object")
+
+        if strict:
+            specification["additionalProperties"] = False
 
         if kubernetes and expanded:
             if group in ["core", "api"]:
