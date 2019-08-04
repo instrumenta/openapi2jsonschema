@@ -83,8 +83,13 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                 definitions["io.k8s.apimachinery.pkg.util.intstr.IntOrString"] = {
                     "oneOf": [{"type": "string"}, {"type": "integer"}]
                 }
+
+                # Although the kubernetes api does not allow `number`  as valid
+                # Quantity type - almost all kubenetes tooling
+                # recognizes it is valid. For this reason, we extend the API definition to
+                # allow `number` values.
                 definitions["io.k8s.apimachinery.pkg.api.resource.Quantity"] = {
-                    "oneOf": [{"type": "string"}, {"type": "integer"}]
+                    "oneOf": [{"type": "string"}, {"type": "integer"}, {"type": "number"}
                 }
 
                 # For Kubernetes, populate `apiVersion` and `kind` properties from `x-kubernetes-group-version-kind`
