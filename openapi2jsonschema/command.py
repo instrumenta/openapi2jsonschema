@@ -83,17 +83,12 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                 definitions["io.k8s.apimachinery.pkg.util.intstr.IntOrString"] = {
                     "oneOf": [{"type": "string"}, {"type": "integer"}]
                 }
-
                 # Although the kubernetes api does not allow `number`  as valid
                 # Quantity type - almost all kubenetes tooling
                 # recognizes it is valid. For this reason, we extend the API definition to
                 # allow `number` values.
                 definitions["io.k8s.apimachinery.pkg.api.resource.Quantity"] = {
-                    "oneOf": [
-                        {"type": "string"},
-                        {"type": "integer"},
-                        {"type": "number"},
-                    ]
+                    "oneOf": [{"type": "string"}, {"type": "number"}]
                 }
 
                 # For Kubernetes, populate `apiVersion` and `kind` properties from `x-kubernetes-group-version-kind`
@@ -103,7 +98,8 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                         for kube_ext in type_def["x-kubernetes-group-version-kind"]:
                             if expanded and "apiVersion" in type_def["properties"]:
                                 api_version = (
-                                    kube_ext["group"] + "/" + kube_ext["version"]
+                                    kube_ext["group"] + "/" +
+                                    kube_ext["version"]
                                     if kube_ext["group"]
                                     else kube_ext["version"]
                                 )
@@ -119,7 +115,8 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                                 )
             if strict:
                 definitions = additional_properties(definitions)
-            definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
+            definitions_file.write(json.dumps(
+                {"definitions": definitions}, indent=2))
 
     types = []
 
@@ -187,7 +184,8 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
 
             if stand_alone:
                 base = "file://%s/%s/" % (os.getcwd(), output)
-                specification = JsonRef.replace_refs(specification, base_uri=base)
+                specification = JsonRef.replace_refs(
+                    specification, base_uri=base)
 
             if "additionalProperties" in specification:
                 if specification["additionalProperties"]:
