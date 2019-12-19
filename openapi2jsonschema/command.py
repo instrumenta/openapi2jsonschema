@@ -16,6 +16,7 @@ from openapi2jsonschema.util import (
     allow_null_optional_fields,
     change_dict_values,
     append_no_duplicates,
+    parse_headers,
 )
 from openapi2jsonschema.errors import UnsupportedError
 
@@ -35,6 +36,12 @@ from openapi2jsonschema.errors import UnsupportedError
     help="Prefix for JSON references (only for OpenAPI versions before 3.0)",
 )
 @click.option(
+    "-H",
+    "--header",
+    multiple=True,
+    help="Extra header to use when getting a schema. May be specified multiple times.",
+)
+@click.option(
     "--stand-alone", is_flag=True, help="Whether or not to de-reference JSON schemas"
 )
 @click.option(
@@ -49,7 +56,7 @@ from openapi2jsonschema.errors import UnsupportedError
     help="Prohibits properties not in the schema (additionalProperties: false)",
 )
 @click.argument("schema", metavar="SCHEMA_URL")
-def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
+def default(output, schema, prefix, header, stand_alone, expanded, kubernetes, strict):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -59,7 +66,11 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
     else:
         if os.path.isfile(schema):
             schema = "file://" + os.path.realpath(schema)
-        req = urllib.request.Request(schema)
+        if header:
+            headers = parse_headers(header)
+            req = urllib.request.Request(schema, headers=headers)
+        else:
+            req = urllib.request.Request(schema)
         response = urllib.request.urlopen(req)
 
     info("Parsing schema")
