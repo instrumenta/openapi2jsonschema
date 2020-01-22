@@ -7,7 +7,11 @@ from openapi2jsonschema.command import default
 FIXTURE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../fixtures")
 
 
-@pytest.mark.datafiles(os.path.join(FIXTURE_DIR, "petstore.yaml"))
+@pytest.mark.datafiles(
+    os.path.join(FIXTURE_DIR, "petstore.yaml"),
+    os.path.join(FIXTURE_DIR, "petstore_spaces.json"),
+    os.path.join(FIXTURE_DIR, "petstore_tab.json"),
+)
 def test_command(datafiles):
     runner = CliRunner()
     for spec in datafiles.listdir():

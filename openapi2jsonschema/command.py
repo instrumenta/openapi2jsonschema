@@ -63,9 +63,13 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
         response = urllib.request.urlopen(req)
 
     info("Parsing schema")
-    # Note that JSON is valid YAML, so we can use the YAML parser whether
-    # the schema is stored in JSON or YAML
-    data = yaml.load(response.read(), Loader=yaml.SafeLoader)
+    # JSON is valid YAML IF it is not indented with tabs,
+    # since yaml.SafeLoader doesn't handle this we load json with the json loader.
+    responseBody = response.read()
+    try:
+        data = json.loads(responseBody)
+    except ValueError as e:
+        data = yaml.load(responseBody, Loader=yaml.SafeLoader)
 
     if "swagger" in data:
         version = data["swagger"]
@@ -98,8 +102,7 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                         for kube_ext in type_def["x-kubernetes-group-version-kind"]:
                             if expanded and "apiVersion" in type_def["properties"]:
                                 api_version = (
-                                    kube_ext["group"] + "/" +
-                                    kube_ext["version"]
+                                    kube_ext["group"] + "/" + kube_ext["version"]
                                     if kube_ext["group"]
                                     else kube_ext["version"]
                                 )
@@ -115,8 +118,7 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                                 )
             if strict:
                 definitions = additional_properties(definitions)
-            definitions_file.write(json.dumps(
-                {"definitions": definitions}, indent=2))
+            definitions_file.write(json.dumps({"definitions": definitions}, indent=2))
 
     types = []
 
@@ -184,8 +186,7 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
 
             if stand_alone:
                 base = "file://%s/%s/" % (os.getcwd(), output)
-                specification = JsonRef.replace_refs(
-                    specification, base_uri=base)
+                specification = JsonRef.replace_refs(specification, base_uri=base)
 
             if "additionalProperties" in specification:
                 if specification["additionalProperties"]:
