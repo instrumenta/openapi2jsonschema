@@ -183,7 +183,12 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
             specification = updated
 
             if stand_alone:
-                base = "file://%s/%s/" % (os.getcwd(), output)
+                ###base = "file://%s/%s/" % (os.getcwd(), output)
+                if os.name == 'nt':
+                    base = "file:///%s/%s/" % (os.getcwd(), output)
+                else:
+                    base = "file://%s/%s/" % (os.getcwd(), output)
+
                 specification = JsonRef.replace_refs(
                     specification, base_uri=base)
 
