@@ -209,6 +209,31 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
         except Exception as e:
             error("An error occured processing %s: %s" % (kind, e))
 
+    responses = []
+    for endpoint, endpoint_data in data["paths"].items():
+        for method, method_data in endpoint_data.items():
+            for status_code, response in method_data["responses"].items():
+                endpoint_title = endpoint.replace("/", "_").replace("{", "").replace("}", "")
+                response["$schema"] = "http://json-schema.org/schema#"
+                file_name = f"{endpoint_title}_{method}_{status_code}"
+                responses.append(file_name)
+
+                specification = None
+                if response.get("schema"):
+                    specification = response["schema"]
+                elif response.get("$ref") or response.get("$schema"):
+                    specification = response
+                elif response.get("content"):
+                    if response["content"].get("application/json"):
+                        specification = response["content"]["application/json"]
+                if specification:
+                    updated = change_dict_values(specification, prefix, version)
+                    response = updated
+
+                with open("%s/%s.json" % (output, file_name), "w") as schema_file:
+                    debug("Generating %s.json" % file_name)
+                    schema_file.write(json.dumps(response, indent=2))
+
     with open("%s/all.json" % output, "w") as all_file:
         info("Generating schema for all types")
         contents = {"oneOf": []}

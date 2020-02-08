@@ -80,6 +80,9 @@ def change_dict_values(d, prefix, version):
         for k, v in iteritems(d):
             new_v = v
             if isinstance(v, dict):
+                if "nullable" in new_v:
+                    new_v["type"] = [new_v["type"], "null"]
+                    del new_v["nullable"]
                 new_v = change_dict_values(v, prefix, version)
             elif isinstance(v, list):
                 new_v = list()
