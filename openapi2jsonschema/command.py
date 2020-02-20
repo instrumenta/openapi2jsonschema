@@ -213,7 +213,7 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
     for endpoint, endpoint_data in data["paths"].items():
         for method, method_data in endpoint_data.items():
             for status_code, response in method_data["responses"].items():
-                endpoint_title = endpoint.replace("/", "_").replace("{", "").replace("}", "")
+                endpoint_title = endpoint.replace("/", "_")
                 response["$schema"] = "http://json-schema.org/schema#"
                 file_name = f"{endpoint_title}_{method}_{status_code}"
                 responses.append(file_name)
