@@ -215,27 +215,33 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict, r
                 updated = allow_null_optional_fields(updated)
                 specification["properties"] = updated
 
-            with open("%s/%s.json" % (output, full_name), "w") as schema_file:
-                debug("Generating %s.json" % full_name)
-                schema_file.write(json.dumps(specification, indent=2))
+            # Normal mode of operation -- generate one JSON schema file per schema
+            # defined in the OpenAPI spec.
+            if root is None:
+                with open("%s/%s.json" % (output, full_name), "w") as schema_file:
+                    dbg("Generating %s.json" % full_name)
+                    schema_file.write(json.dumps(specification, indent=2))
         except Exception as e:
             error("An error occured processing %s: %s" % (kind, e))
 
-    with open("%s/all.json" % output, "w") as all_file:
-        info("Generating schema for all types")
-        contents = {"oneOf": []}
-        for title in types:
-            if version < "3":
-                contents["oneOf"].append(
-                    {"$ref": "%s#/definitions/%s" % (prefix, title)}
-                )
-            else:
-                contents["oneOf"].append(
-                    {"$ref": (title.replace("#/components/schemas/", "") + ".json")}
-                )
-        all_file.write(json.dumps(contents, indent=2))
+    # unless you are generating a single file for a single JSON schema,
+    # then also generate an `all.json` file.
+    if root is None:
+        with open("%s/all.json" % output, "w") as all_file:
+            info("Generating schema for all types")
+            contents = {"oneOf": []}
+            for title in types:
+                if version < "3":
+                    contents["oneOf"].append(
+                        {"$ref": "%s#/definitions/%s" % (prefix, title)}
+                    )
+                else:
+                    contents["oneOf"].append(
+                        {"$ref": (title.replace("#/components/schemas/", "") + ".json")}
+                    )
+            all_file.write(json.dumps(contents, indent=2))
 
-    if root is not None:
+    else:
         # should fix this naming....
         outfile: str = f"{output}/{root}.json"
         if not components[root]:
