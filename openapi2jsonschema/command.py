@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
 import json
+import re
+from copy import deepcopy
+from typing import Any, Dict, Optional
+
 import yaml
 import urllib
 import os
@@ -35,6 +39,12 @@ from openapi2jsonschema.errors import UnsupportedError
     help="Prefix for JSON references (only for OpenAPI versions before 3.0)",
 )
 @click.option(
+    "-r",
+    "--root",
+    default=None,
+    help="Root class to generate schema for.  Will generate a standalone JSON schema file for this class.",
+)
+@click.option(
     "--stand-alone", is_flag=True, help="Whether or not to de-reference JSON schemas"
 )
 @click.option(
@@ -49,7 +59,7 @@ from openapi2jsonschema.errors import UnsupportedError
     help="Prohibits properties not in the schema (additionalProperties: false)",
 )
 @click.argument("schema", metavar="SCHEMA_URL")
-def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
+def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict, root: Optional[str]):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -71,6 +81,8 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
         version = data["swagger"]
     elif "openapi" in data:
         version = data["openapi"]
+    else:
+        raise ValueError("Unable to determine OpenAPI version.")
 
     if not os.path.exists(output):
         os.makedirs(output)
@@ -127,11 +139,11 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
         components = data["components"]["schemas"]
 
     for title in components:
-        kind = title.split(".")[-1].lower()
+        kind = title.split(".")[-1]  # .lower()
         if kubernetes:
-            group = title.split(".")[-3].lower()
-            api_version = title.split(".")[-2].lower()
-        specification = components[title]
+            group = title.split(".")[-3]  # .lower()
+            api_version = title.split(".")[-2]  # .lower()
+        specification = deepcopy(components[title])
         specification["$schema"] = "http://json-schema.org/schema#"
         specification.setdefault("type", "object")
 
@@ -162,20 +174,20 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
             # This list of Kubernetes types carry around jsonschema for Kubernetes and don't
             # currently work with openapi2jsonschema
             if (
-                kubernetes
-                and stand_alone
-                and kind
-                in [
-                    "jsonschemaprops",
-                    "jsonschemapropsorarray",
-                    "customresourcevalidation",
-                    "customresourcedefinition",
-                    "customresourcedefinitionspec",
-                    "customresourcedefinitionlist",
-                    "customresourcedefinitionspec",
-                    "jsonschemapropsorstringarray",
-                    "jsonschemapropsorbool",
-                ]
+                    kubernetes
+                    and stand_alone
+                    and kind
+                    in [
+                "jsonschemaprops",
+                "jsonschemapropsorarray",
+                "customresourcevalidation",
+                "customresourcedefinition",
+                "customresourcedefinitionspec",
+                "customresourcedefinitionlist",
+                "customresourcedefinitionspec",
+                "jsonschemapropsorstringarray",
+                "jsonschemapropsorbool",
+            ]
             ):
                 raise UnsupportedError("%s not currently supported" % kind)
 
@@ -203,25 +215,86 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                 updated = allow_null_optional_fields(updated)
                 specification["properties"] = updated
 
-            with open("%s/%s.json" % (output, full_name), "w") as schema_file:
-                debug("Generating %s.json" % full_name)
-                schema_file.write(json.dumps(specification, indent=2))
+            # Normal mode of operation -- generate one JSON schema file per schema
+            # defined in the OpenAPI spec.
+            if root is None:
+                with open("%s/%s.json" % (output, full_name), "w") as schema_file:
+                    dbg("Generating %s.json" % full_name)
+                    schema_file.write(json.dumps(specification, indent=2))
         except Exception as e:
             error("An error occured processing %s: %s" % (kind, e))
 
-    with open("%s/all.json" % output, "w") as all_file:
-        info("Generating schema for all types")
-        contents = {"oneOf": []}
-        for title in types:
-            if version < "3":
-                contents["oneOf"].append(
-                    {"$ref": "%s#/definitions/%s" % (prefix, title)}
-                )
+    # unless you are generating a single file for a single JSON schema,
+    # then also generate an `all.json` file.
+    if root is None:
+        with open("%s/all.json" % output, "w") as all_file:
+            info("Generating schema for all types")
+            contents = {"oneOf": []}
+            for title in types:
+                if version < "3":
+                    contents["oneOf"].append(
+                        {"$ref": "%s#/definitions/%s" % (prefix, title)}
+                    )
+                else:
+                    contents["oneOf"].append(
+                        {"$ref": (title.replace("#/components/schemas/", "") + ".json")}
+                    )
+            all_file.write(json.dumps(contents, indent=2))
+
+    else:
+        # should fix this naming....
+        outfile: str = f"{output}/{root}.json"
+        if not components[root]:
+            raise ValueError(f"Unable to find JSON class {outfile}")
+        contents = components[root]
+        contents = rewrite_links(contents)
+
+        info(f"Generating standalone schema for {root} type")
+        contents["definitions"] = {}
+        contents["$schema"] = "http://json-schema.org/schema#"
+
+        info("Incorporating individual schemas")
+
+        title: str
+        spec: Dict[str, Any]
+        for title, spec in components.items():
+            if title == root:
+                continue
+
+            specification: Dict[str, Any] = deepcopy(spec)
+            specification.setdefault("type", "object")
+
+            debug(f"Merging schema for {title}:")
+            debug(f"{specification}")
+
+            contents["definitions"][title] = rewrite_links(specification)
+
+        with open(outfile, "w") as root_file:
+            root_file.write(json.dumps(contents, indent=2))
+
+
+# Tail-recursive. This is going to be bad. But we can rewrite it later.
+def rewrite_links(spec):
+    def dict_rewrite(dct):
+        new = {}
+        for key, value in spec.items():
+            if key == "$ref":
+                matchval = re.match('.*/([^/]+)$', value)
+                if matchval:
+                    name: str = matchval.group(1)
+                else:
+                    raise ValueError(f"Unable to extract a class name from {value}")
+                new[key] = "#/definitions/%s" % name
             else:
-                contents["oneOf"].append(
-                    {"$ref": (title.replace("#/components/schemas/", "") + ".json")}
-                )
-        all_file.write(json.dumps(contents, indent=2))
+                new[key] = rewrite_links(value)
+        return new
+
+    if isinstance(spec, dict):
+        return dict_rewrite(spec)
+    elif isinstance(spec, list):
+        return [rewrite_links(x) for x in spec]
+    else:
+        return spec
 
 
 if __name__ == "__main__":
