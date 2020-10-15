@@ -121,7 +121,7 @@ def get_components_from_body_definition(body_definition, prefix=""):
         "application/vnd.api+json": "jsonapi",
     }
     result = {}
-    for mimetype, definition in body_definition["content"].items():
+    for mimetype, definition in body_definition.get("content", {}).items():
         type_name = MIMETYPE_TO_TYPENAME_MAP.get(
             mimetype,
             mimetype.replace("/", "_"),
