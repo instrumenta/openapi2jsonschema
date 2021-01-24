@@ -127,7 +127,7 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
         components = data["components"]["schemas"]
 
     for title in components:
-        kind = title.split(".")[-1].lower()
+        kind = title.split(".")[-1]
         if kubernetes:
             group = title.split(".")[-3].lower()
             api_version = title.split(".")[-2].lower()
