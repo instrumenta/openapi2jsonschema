@@ -77,7 +77,10 @@ def allow_null_optional_fields(data, parent=None, grand_parent=None, key=None):
 def change_dict_values(d, prefix, version):
     new = {}
     try:
+        is_nullable = False
         for k, v in iteritems(d):
+            if k == 'nullable':
+                is_nullable = True
             new_v = v
             if isinstance(v, dict):
                 new_v = change_dict_values(v, prefix, version)
@@ -94,6 +97,10 @@ def change_dict_values(d, prefix, version):
             else:
                 new_v = v
             new[k] = new_v
+        if is_nullable and 'type' in new:
+            if not isinstance(new['type'], list):
+                new['type'] = [new['type']]
+            new['type'].append('null')
         return new
     except AttributeError:
         return d
