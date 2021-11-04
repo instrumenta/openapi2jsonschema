@@ -65,10 +65,6 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
                 schema = schema = 'file://' + os.path.realpath(schema)  # does not support windows
         req = urllib.request.Request(schema)
         response = urllib.request.urlopen(req)
-
-        req = urllib.request.Request(schema)
-        response = urllib.request.urlopen(req)
-
     info("Parsing schema")
     # Note that JSON is valid YAML, so we can use the YAML parser whether
     # the schema is stored in JSON or YAML
