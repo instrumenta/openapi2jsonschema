@@ -58,7 +58,14 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
         response = urllib.urlopen(schema)
     else:
         if os.path.isfile(schema):
-            schema = "file://" + os.path.realpath(schema)
+            if sys.version_info >= (3, 4):
+                import pathlib
+                schema = pathlib.Path(os.path.realpath(schema)).as_uri()
+            else:
+                schema = schema = 'file://' + os.path.realpath(schema)  # does not support windows
+        req = urllib.request.Request(schema)
+        response = urllib.request.urlopen(req)
+
         req = urllib.request.Request(schema)
         response = urllib.request.urlopen(req)
 
