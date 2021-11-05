@@ -129,8 +129,12 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
     for title in components:
         kind = title.split(".")[-1].lower()
         if kubernetes:
-            group = title.split(".")[-3].lower()
-            api_version = title.split(".")[-2].lower()
+            try:
+                group = title.split(".")[-3].lower()
+                api_version = title.split(".")[-2].lower()
+            except IndexError:
+                error(f'unable to determine group and apiversion from {title}')
+                continue
         specification = components[title]
         specification["$schema"] = "http://json-schema.org/schema#"
         specification.setdefault("type", "object")
