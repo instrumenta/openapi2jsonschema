@@ -44,12 +44,15 @@ from openapi2jsonschema.errors import UnsupportedError
     "--kubernetes", is_flag=True, help="Enable Kubernetes specific processors"
 )
 @click.option(
+    "--no-all", is_flag=True, help="Do not generate all.json file"
+)
+@click.option(
     "--strict",
     is_flag=True,
     help="Prohibits properties not in the schema (additionalProperties: false)",
 )
 @click.argument("schema", metavar="SCHEMA_URL")
-def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
+def default(output, schema, prefix, stand_alone, expanded, kubernetes, no_all, strict):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -126,6 +129,7 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
     else:
         components = data["components"]["schemas"]
 
+    generated_files = []
     for title in components:
         kind = title.split(".")[-1].lower()
         if kubernetes:
@@ -183,9 +187,9 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
             specification = updated
 
             if stand_alone:
-                base = "file://%s/%s/" % (os.getcwd(), output)
-                specification = JsonRef.replace_refs(
-                    specification, base_uri=base)
+                # Put generated file on list for dereferencig $ref elements
+                # after all files will be generated
+                generated_files.append(full_name)
 
             if "additionalProperties" in specification:
                 if specification["additionalProperties"]:
@@ -209,19 +213,30 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, strict):
         except Exception as e:
             error("An error occured processing %s: %s" % (kind, e))
 
-    with open("%s/all.json" % output, "w") as all_file:
-        info("Generating schema for all types")
-        contents = {"oneOf": []}
-        for title in types:
-            if version < "3":
-                contents["oneOf"].append(
-                    {"$ref": "%s#/definitions/%s" % (prefix, title)}
-                )
-            else:
-                contents["oneOf"].append(
-                    {"$ref": (title.replace("#/components/schemas/", "") + ".json")}
-                )
-        all_file.write(json.dumps(contents, indent=2))
+    if stand_alone:
+        base = "file://%s/%s/" % (os.getcwd(), output)
+        for file_name in generated_files:
+            full_path = "%s/%s.json" % (output, file_name)
+            specification = json.load(open(full_path))
+            specification = JsonRef.replace_refs(
+                specification, base_uri=base)
+            with open(full_path, "w") as schema_file:
+                schema_file.write(json.dumps(specification, indent=2))
+
+    if not no_all:
+        with open("%s/all.json" % output, "w") as all_file:
+            info("Generating schema for all types")
+            contents = {"oneOf": []}
+            for title in types:
+                if version < "3":
+                    contents["oneOf"].append(
+                        {"$ref": "%s#/definitions/%s" % (prefix, title)}
+                    )
+                else:
+                    contents["oneOf"].append(
+                        {"$ref": (title.replace("#/components/schemas/", "") + ".json")}
+                    )
+            all_file.write(json.dumps(contents, indent=2))
 
 
 if __name__ == "__main__":

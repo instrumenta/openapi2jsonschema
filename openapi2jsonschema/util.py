@@ -90,7 +90,7 @@ def change_dict_values(d, prefix, version):
                     if version < "3":
                         new_v = "%s%s" % (prefix, v)
                     else:
-                        new_v = v.replace("#/components/schemas/", "") + ".json"
+                        new_v = v.replace("#/components/schemas/", "").lower() + ".json"
             else:
                 new_v = v
             new[k] = new_v
