@@ -16,6 +16,7 @@ from openapi2jsonschema.util import (
     allow_null_optional_fields,
     change_dict_values,
     append_no_duplicates,
+    get_request_and_response_body_components_from_paths,
 )
 from openapi2jsonschema.errors import UnsupportedError
 
@@ -51,8 +52,23 @@ from openapi2jsonschema.errors import UnsupportedError
     is_flag=True,
     help="Prohibits properties not in the schema (additionalProperties: false)",
 )
+@click.option(
+    "--include-bodies",
+    is_flag=True,
+    help="Include request and response bodies as if they are components",
+)
 @click.argument("schema", metavar="SCHEMA_URL")
-def default(output, schema, prefix, stand_alone, expanded, kubernetes, no_all, strict):
+def default(
+    output,
+    schema,
+    prefix,
+    stand_alone,
+    expanded,
+    kubernetes,
+    strict,
+    no_all,
+    include_bodies,
+):
     """
     Converts a valid OpenAPI specification into a set of JSON Schema files
     """
@@ -130,8 +146,14 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, no_all, s
         components = data["components"]["schemas"]
 
     generated_files = []
+
+    if include_bodies:
+        components.update(
+            get_request_and_response_body_components_from_paths(data["paths"]),
+        )
+
     for title in components:
-        kind = title.split(".")[-1].lower()
+        kind = title.split(".")[-1]
         if kubernetes:
             group = title.split(".")[-3].lower()
             api_version = title.split(".")[-2].lower()
@@ -168,8 +190,7 @@ def default(output, schema, prefix, stand_alone, expanded, kubernetes, no_all, s
             if (
                 kubernetes
                 and stand_alone
-                and kind
-                in [
+                and kind.lower() in [
                     "jsonschemaprops",
                     "jsonschemapropsorarray",
                     "customresourcevalidation",

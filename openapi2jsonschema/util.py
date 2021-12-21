@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import re
+
 
 def iteritems(d):
     if hasattr(dict, "iteritems"):
@@ -115,3 +117,49 @@ def append_no_duplicates(obj, key, value):
         obj[key] = []
     if value not in obj[key]:
         obj[key].append(value)
+
+
+def get_components_from_body_definition(body_definition, prefix=""):
+    MIMETYPE_TO_TYPENAME_MAP = {
+        "application/json": "json",
+        "application/vnd.api+json": "jsonapi",
+    }
+    result = {}
+    for mimetype, definition in body_definition.get("content", {}).items():
+        type_name = MIMETYPE_TO_TYPENAME_MAP.get(
+            mimetype,
+            mimetype.replace("/", "_"),
+        )
+        if "schema" in definition:
+            result["{:s}{:s}".format(prefix, type_name)] = definition["schema"]
+    return result
+
+
+def get_request_and_response_body_components_from_paths(paths):
+    components = {}
+    for path, path_definition in paths.items():
+        for http_method, http_method_definition in path_definition.items():
+            name_prefix_fmt = "paths_{:s}_{:s}_{{:s}}_".format(
+                # Paths "/" and "/root" will conflict,
+                # no idea how to solve this elegantly.
+                path.lstrip("/").replace("/", "_") or "root",
+                http_method.upper(),
+            )
+            name_prefix_fmt = re.sub(
+                r"\{([^:\}]+)\}",
+                r"_\1_",
+                name_prefix_fmt,
+            )
+            if "requestBody" in http_method_definition:
+                components.update(get_components_from_body_definition(
+                    http_method_definition["requestBody"],
+                    prefix=name_prefix_fmt.format("request")
+                ))
+            responses = http_method_definition["responses"]
+            for response_code, response in responses.items():
+                response_name_part = "response_{}".format(response_code)
+                components.update(get_components_from_body_definition(
+                    response,
+                    prefix=name_prefix_fmt.format(response_name_part),
+                ))
+    return components
