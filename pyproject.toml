@@ -11,8 +11,8 @@ keywords = ["openapi", "jsonschema"]
 [tool.poetry.dependencies]
 python = "^3.7"
 jsonref = "^0.2.0"
-pyyaml = "^5.1"
-click = "^7.0"
+pyyaml = "^6.0"
+click = "^8.0"
 colorama = "^0.4.1"
 
 [tool.poetry.scripts]
